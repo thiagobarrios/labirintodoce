@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Labirinto doce</title>
+<style>
+  body { 
+    background: #2c3e50; 
+    text-align: center; 
+    color: white; 
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+    margin: 0; 
+    padding: 20px; 
+  }
+  canvas { 
+    border: 4px solid #000000; 
+    background: #ecf0f1; 
+    border-radius: 8px; 
+    box-shadow: 0 4px 8px rgba(0,0,0,0.3); 
+    max-width: 100%; 
+    height: auto; 
+    touch-action: none; /* Evita rolagem nativa no mobile */
+  }
+  #hud { 
+    margin-bottom: 15px; 
+    font-size: 18px; 
+    font-weight: bold; 
+    background: #34495e;
+    padding: 10px;
+    border-radius: 5px;
+    display: inline-block;
+  }
+  .controls { 
+    margin-top: 15px; 
+    font-size: 14px; 
+    color: #bdc3c7; 
+  }
+</style>
+</head>
+<body>
+<h2>Labirinto doce</h2>
+<div id="hud">
+  <span id="moves">Movimentos: 0</span> | 
+  <span id="time">Tempo: 0s</span>
+  <button onclick="window.location.reload()" style="margin-left: 15px; padding: 5px 15px; background: #e74c3c; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold;">
+    Reiniciar Nível
+  </button>
+</div>
+<br>
+<canvas id="game"></canvas>
+<div class="controls"><mark>Deslize na tela para mover ou use as setas do teclado</mark></div>
+
+<script>
+(function(){
+  const canvas = document.getElementById("game");
+  const ctx = canvas.getContext("2d");
+  
+  const imgDoce = new Image(); // Imagem do doce
+  imgDoce.src = 'img/doce.png';
+
+  
+  const imgPlayer = new Image(); // Imagem do jogador
+  imgPlayer.src = 'img/player.png';
+
+  
+  function drawPlayer(x, y) { // Função drawPlayer atualizada para checar o sprite primeiro
+     if (imgPlayer.complete && imgPlayer.naturalWidth !== 0) { // Se a imagem carregar, desenha o sprite respeitando o tamanho do grid de 40px
+         
+         ctx.drawImage(imgPlayer, x*40+2, y*40+2, 36, 36);
+     } else { // Fallback para o desenho original caso a imagem falhe
+         
+         ctx.fillStyle = "#070c3c";
+         ctx.beginPath();
+         ctx.arc(x*40+20, y*40+20, 15, 0, Math.PI*2);
+         ctx.fill();
+         // Olhos
+         ctx.fillStyle = "#fff"; 
+         ctx.fillRect(x*40+12, y*40+12, 4, 4);
+         ctx.fillRect(x*40+24, y*40+12, 4, 4);
+     }
+  }
+
+  
+  let map = [ // Mapa (0 = chão, 1 = parede, 2 = alvo, 3 = doce, 4 = jogador)
+    [1,1,1,1,1,1,1,1],
+    [1,0,0,0,0,0,0,1],
+    [1,0,2,0,3,0,0,1],
+    [1,0,0,4,0,0,0,1],
+    [1,1,1,0,3,2,0,1],
+    [1,0,0,0,0,0,0,1],
+    [1,0,0,0,0,0,0,1],
+    [1,1,1,1,1,1,1,1]
+  ];
+  
+  let cols = map[0].length;
+  let rows = map.length;
+  canvas.width = cols * 40;
+  canvas.height = rows * 40;
+
+  let player = {x:0, y:0};
+  
+  for(let y=0; y<rows; y++){   // Localiza e remove o marcador do jogador (4) para gerenciar as coordenadas independentemente
+    for(let x=0; x<cols; x++){
+      if(map[y][x] === 4){
+        player = {x: x, y: y};
+        map[y][x] = 0;
+      }
+    }
+  }
+
+  const XOR_KEY = 83921; 
+
+  let _m = btoa((0 ^ XOR_KEY).toString());
+  let _t = btoa((0 ^ XOR_KEY).toString());
+  let _start = Date.now();
+  let _won = false;
+
+  function getVal(encoded) { return parseInt(atob(encoded)) ^ XOR_KEY; }
+  function setVal(num) { return btoa((num ^ XOR_KEY).toString()); }
+
+  function checkWin() {
+    let win = true;
+    for(let y=0; y<rows; y++){
+      for(let x=0; x<cols; x++){
+        if(map[y][x] === 2) win = false;
+      }
+    }
+    if(win && !_won) {
+      _won = true;
+      setTimeout(() => alert(`Nível Completo! Tempo: ${getVal(_t)}s | Movimentos: ${getVal(_m)}`), 100);
+    }
+  }
+
+  function draw(){
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    for(let y=0; y<rows; y++){
+      for(let x=0; x<cols; x++){
+        
+        ctx.fillStyle = "#ecf0f1"; // Chão/Vazio
+        ctx.fillRect(x*40, y*40, 40, 40);
+
+        if(map[y][x] === 1){ // Parede
+          ctx.fillStyle = "#d4495e";
+          ctx.fillRect(x*40, y*40, 40, 40);
+          ctx.strokeStyle = "#2c3e50";
+          ctx.strokeRect(x*40, y*40, 40, 40);
+        }
+        if(map[y][x] === 2){ // Alvo
+          ctx.fillStyle = "#2ecc71";
+          ctx.beginPath();
+          ctx.arc(x*40+20, y*40+20, 10, 0, Math.PI*2);
+          ctx.fill();
+        }
+        if(map[y][x] === 3 || map[y][x] === 5){ // Doce (3) ou Doce no alvo (5)
+          if(map[y][x] === 5) { // Destaque visual quando encaixa
+             
+             ctx.fillStyle = "rgba(46, 204, 113, 0.4)";
+             ctx.fillRect(x*40, y*40, 40, 40);
+          }
+          if(imgDoce.complete && imgDoce.naturalWidth !== 0) {
+            ctx.drawImage(imgDoce, x*40+2, y*40+2, 36, 36);
+          } else { // Fallback caso a imagem não carregue
+            ctx.fillStyle = "#a74c3c";
+            ctx.beginPath();
+            ctx.arc(x*40+20, y*40+20, 15, 0, Math.PI*2);
+            ctx.fill();
+            ctx.fillStyle = "#b00000"; 
+            ctx.fillRect(x*40+12, y*40+12, 4, 4);
+            ctx.fillRect(x*40+24, y*40+12, 4, 4);
+            ctx.fillRect(x*40+24, y*40+24, 4, 4);
+            ctx.fillRect(x*40+12, y*40+24, 4, 4);
+          }
+        }
+      }
+    }
+    drawPlayer(player.x, player.y);
+    
+    document.getElementById("moves").textContent = "Movimentos: " + getVal(_m);
+    document.getElementById("time").textContent = "Tempo: " + getVal(_t) + "s";
+  }
+
+  function move(dx, dy){
+    if(_won) return;
+    
+    let nx = player.x + dx, ny = player.y + dy;
+    if(nx < 0 || nx >= cols || ny < 0 || ny >= rows) return;
+    
+    let targetCell = map[ny][nx];
+    if(targetCell === 1) return; // Colisão com parede
+    
+    if(targetCell === 3 || targetCell === 5){ // Empurrando doce
+      let bx = nx + dx, by = ny + dy;
+      if(bx < 0 || bx >= cols || by < 0 || by >= rows) return;
+      
+      let beyondCell = map[by][bx];
+      if(beyondCell === 0 || beyondCell === 2){
+        // Move o doce logicamente na matriz
+        map[ny][nx] = (targetCell === 5) ? 2 : 0; 
+        map[by][bx] = (beyondCell === 2) ? 5 : 3; 
+      } else {
+        return; // Obstáculo atrás do doce
+      }
+    }
+    
+    player.x = nx; player.y = ny;
+    
+    _m = setVal(getVal(_m) + 1);
+    
+    checkWin();
+    draw();
+  }
+
+  document.addEventListener("keydown", e => {   // Eventos de Teclado
+    if(["ArrowUp","ArrowDown","ArrowLeft","ArrowRight"].includes(e.key)) e.preventDefault(); 
+    if(e.key === "ArrowUp") move(0, -1);
+    if(e.key === "ArrowDown") move(0, 1);
+    if(e.key === "ArrowLeft") move(-1, 0);
+    if(e.key === "ArrowRight") move(1, 0);
+  });
+
+  
+  let touchStartX = 0, touchStartY = 0; // Eventos Touch
+  canvas.addEventListener("touchstart", e => {
+    touchStartX = e.touches[0].clientX;
+    touchStartY = e.touches[0].clientY;
+    e.preventDefault();
+  }, {passive: false});
+  
+  canvas.addEventListener("touchend", e => {
+    let dx = e.changedTouches[0].clientX - touchStartX;
+    let dy = e.changedTouches[0].clientY - touchStartY;
+    if(Math.abs(dx) > Math.abs(dy)){
+      if(dx > 30) move(1, 0);   
+      if(dx < -30) move(-1, 0); 
+    } else {
+      if(dy > 30) move(0, 1);   
+      if(dy < -30) move(0, -1); 
+    }
+  }, {passive: false});
+
+  let timerInterval = setInterval(()=>{
+    if(_won) {
+      clearInterval(timerInterval);
+      return;
+    }
+    let elapsed = Math.floor((Date.now() - _start) / 1000);
+    _t = setVal(elapsed);
+    draw();
+  }, 1000);
+
+
+  imgDoce.onload = draw;   // Garante o desenho inicial mesmo se as imagens demorarem um pouco
+  imgPlayer.onload = draw;
+  draw();
+})();
+</script>
+</body>
+</html>
