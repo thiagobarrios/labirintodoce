@@ -1,2 +1,2 @@
-# labirintodoce
+# labirinto doce
 Apenas um jogo estilo sokoban
